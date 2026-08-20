@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ChairController;
 use App\Http\Controllers\Api\SalonController;
+use App\Http\Controllers\Api\ServiceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,13 +19,24 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/auth/me', [AuthController::class, 'me']);
 
-    // Salons — anyone logged in can view/list, but only salon_owner can create
+    // Salons — anyone logged in can view/list
     Route::get('/salons', [SalonController::class, 'index']);
     Route::get('/salons/{salon}', [SalonController::class, 'show']);
+    Route::get('/salons/{salon}/chairs', [ChairController::class, 'index']);
+    Route::get('/salons/{salon}/services', [ServiceController::class, 'index']);
 
+    // Only salon_owner/super_admin can create/modify
     Route::middleware('role:salon_owner,super_admin')->group(function () {
         Route::post('/salons', [SalonController::class, 'store']);
         Route::put('/salons/{salon}', [SalonController::class, 'update']);
         Route::delete('/salons/{salon}', [SalonController::class, 'destroy']);
+
+        Route::post('/salons/{salon}/chairs', [ChairController::class, 'store']);
+        Route::put('/chairs/{chair}', [ChairController::class, 'update']);
+        Route::delete('/chairs/{chair}', [ChairController::class, 'destroy']);
+
+        Route::post('/salons/{salon}/services', [ServiceController::class, 'store']);
+        Route::put('/services/{service}', [ServiceController::class, 'update']);
+        Route::delete('/services/{service}', [ServiceController::class, 'destroy']);
     });
 });
