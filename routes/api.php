@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\SalonController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,4 +16,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/auth/me', [AuthController::class, 'me']);
+
+    // Salons — anyone logged in can view/list, but only salon_owner can create
+    Route::get('/salons', [SalonController::class, 'index']);
+    Route::get('/salons/{salon}', [SalonController::class, 'show']);
+
+    Route::middleware('role:salon_owner,super_admin')->group(function () {
+        Route::post('/salons', [SalonController::class, 'store']);
+        Route::put('/salons/{salon}', [SalonController::class, 'update']);
+        Route::delete('/salons/{salon}', [SalonController::class, 'destroy']);
+    });
 });
