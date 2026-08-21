@@ -18,9 +18,6 @@ class BookingController extends Controller
     {
     }
 
-    /**
-     * Customer joins the queue for a salon's service.
-     */
     public function store(Request $request, Salon $salon)
     {
         $user = $request->user();
@@ -51,7 +48,6 @@ class BookingController extends Controller
             return response()->json(['message' => 'You already have an active booking at this salon.'], 422);
         }
 
-        // Estimate BEFORE creating, since this booking isn't in the queue yet
         $estimate = $this->queueService->estimateWait($salon, $service->avg_duration_minutes);
 
         $booking = Booking::create([
@@ -69,9 +65,6 @@ class BookingController extends Controller
         ], 201);
     }
 
-    /**
-     * Staff/owner view of the live queue for a salon.
-     */
     public function index(Request $request, Salon $salon)
     {
         $this->authorizeQueueAccess($request->user(), $salon);
@@ -86,8 +79,46 @@ class BookingController extends Controller
     }
 
     /**
-     * Staff assigns a waiting booking to a chair and starts the service.
+     * Live status of a single booking — used by the customer app's tracking screen.
      */
+    public function show(Request $request, Booking $booking)
+    {
+        $user = $request->user();
+
+        $isCustomer = $booking->customer_id === $user->id;
+        $isOwner = $booking->salon->owner_id === $user->id;
+        $isStaff = Staff::where('user_id', $user->id)->where('salon_id', $booking->salon_id)->exists();
+        $isSuperAdmin = $user->role === 'super_admin';
+
+        if (! $isCustomer && ! $isOwner && ! $isStaff && ! $isSuperAdmin) {
+            return response()->json(['message' => 'You do not have access to this booking.'], 403);
+        }
+
+        $booking->load(['service', 'chair', 'salon']);
+
+        $positionInQueue = null;
+        $estimatedWaitMinutes = null;
+
+        if ($booking->status === 'waiting') {
+            $peopleAhead = Booking::where('salon_id', $booking->salon_id)
+                ->where('status', 'waiting')
+                ->where('created_at', '<', $booking->created_at)
+                ->count();
+
+            $positionInQueue = $peopleAhead + 1;
+
+            $chairCount = max(1, $booking->salon->chairs()->count());
+            $avgDuration = $booking->service->avg_duration_minutes ?? 20;
+            $estimatedWaitMinutes = (int) ceil($peopleAhead / $chairCount) * $avgDuration;
+        }
+
+        return response()->json([
+            'booking' => $booking,
+            'position_in_queue' => $positionInQueue,
+            'estimated_wait_minutes' => $estimatedWaitMinutes,
+        ]);
+    }
+
     public function start(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
@@ -130,9 +161,6 @@ class BookingController extends Controller
         return response()->json($booking->fresh());
     }
 
-    /**
-     * Staff marks a booking done, frees the chair, refines the service's avg duration.
-     */
     public function complete(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
@@ -153,7 +181,6 @@ class BookingController extends Controller
             ]);
         }
 
-        // Self-correcting average: blend the old estimate with what actually happened
         $actualMinutes = $booking->started_at->diffInMinutes($booking->ended_at);
         $service = $booking->service;
         $newAvg = (int) round(($service->avg_duration_minutes + $actualMinutes) / 2);
@@ -162,9 +189,6 @@ class BookingController extends Controller
         return response()->json($booking->fresh());
     }
 
-    /**
-     * Staff marks a customer as a no-show.
-     */
     public function noShow(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
@@ -178,9 +202,6 @@ class BookingController extends Controller
         return response()->json($booking->fresh());
     }
 
-    /**
-     * Customer cancels their own booking.
-     */
     public function cancel(Request $request, Booking $booking)
     {
         $user = $request->user();

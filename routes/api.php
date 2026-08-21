@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/salons/{salon}/bookings', [BookingController::class, 'store']);
     Route::get('/salons/{salon}/bookings', [BookingController::class, 'index']);
+    Route::get('/bookings/{booking}', [BookingController::class, 'show']);
     Route::post('/bookings/{booking}/start', [BookingController::class, 'start']);
     Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete']);
     Route::post('/bookings/{booking}/no-show', [BookingController::class, 'noShow']);
