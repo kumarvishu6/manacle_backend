@@ -107,9 +107,8 @@ class BookingController extends Controller
 
             $positionInQueue = $peopleAhead + 1;
 
-            $chairCount = max(1, $booking->salon->chairs()->count());
-            $avgDuration = $booking->service->avg_duration_minutes ?? 20;
-            $estimatedWaitMinutes = (int) ceil($peopleAhead / $chairCount) * $avgDuration;
+            $estimate = $this->queueService->estimateWait($booking->salon, $booking->service->avg_duration_minutes ?? 20);
+            $estimatedWaitMinutes = $estimate['estimated_wait_minutes'];
         }
 
         return response()->json([

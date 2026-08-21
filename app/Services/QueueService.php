@@ -32,8 +32,18 @@ class QueueService
             if ($chair->status === 'occupied' && $chair->currentBooking && $chair->currentBooking->started_at) {
                 $booking = $chair->currentBooking;
                 $duration = $booking->service->avg_duration_minutes ?? 20;
-                $freeAt = Carbon::parse($booking->started_at)->addMinutes($duration);
-                return $freeAt->greaterThan($now) ? $freeAt : $now->copy();
+                $startedAt = Carbon::parse($booking->started_at);
+                $expectedFreeAt = $startedAt->copy()->addMinutes($duration);
+
+                if ($expectedFreeAt->greaterThan($now)) {
+                    return $expectedFreeAt;
+                }
+
+                // Barber is running over. Instead of assuming they'll finish
+                // instantly, add a grace buffer that grows the longer they're overdue.
+                $overdueMinutes = $now->diffInMinutes($expectedFreeAt);
+                $buffer = min(10, max(3, (int) ($overdueMinutes * 0.5)));
+                return $now->copy()->addMinutes($buffer);
             }
             return $now->copy();
         })->values()->all();
