@@ -98,6 +98,8 @@ class BookingController extends Controller
 
         $positionInQueue = null;
         $estimatedWaitMinutes = null;
+        $expectedStartAt = null;
+        $isAnchored = false;
 
         if ($booking->status === 'waiting') {
             $peopleAhead = Booking::where('salon_id', $booking->salon_id)
@@ -107,14 +109,18 @@ class BookingController extends Controller
 
             $positionInQueue = $peopleAhead + 1;
 
-            $estimate = $this->queueService->estimateWait($booking->salon, $booking->service->avg_duration_minutes ?? 20);
+            $estimate = $this->queueService->estimateWaitForBooking($booking);
             $estimatedWaitMinutes = $estimate['estimated_wait_minutes'];
+            $expectedStartAt = $estimate['expected_start_at'];
+            $isAnchored = $estimate['is_anchored'];
         }
 
         return response()->json([
             'booking' => $booking,
             'position_in_queue' => $positionInQueue,
             'estimated_wait_minutes' => $estimatedWaitMinutes,
+            'expected_start_at' => $expectedStartAt,
+            'is_anchored' => $isAnchored,
         ]);
     }
 

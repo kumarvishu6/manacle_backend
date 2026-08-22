@@ -10,9 +10,6 @@ class QueueService
 {
     /**
      * Simulates the queue to estimate when a NEW booking would actually start.
-     * Logic: figure out when each chair frees up, then "walk" everyone
-     * currently waiting into whichever chair is free soonest — same idea
-     * as how kitchen/delivery apps estimate prep time across multiple stations.
      */
     public function estimateWait(Salon $salon, int $serviceDurationMinutes): array
     {
@@ -27,28 +24,8 @@ class QueueService
             ];
         }
 
-        // Step 1: when does each chair become free?
-        $freeTimes = $chairs->map(function ($chair) use ($now) {
-            if ($chair->status === 'occupied' && $chair->currentBooking && $chair->currentBooking->started_at) {
-                $booking = $chair->currentBooking;
-                $duration = $booking->service->avg_duration_minutes ?? 20;
-                $startedAt = Carbon::parse($booking->started_at);
-                $expectedFreeAt = $startedAt->copy()->addMinutes($duration);
+        $freeTimes = $this->computeChairFreeTimes($chairs, $now);
 
-                if ($expectedFreeAt->greaterThan($now)) {
-                    return $expectedFreeAt;
-                }
-
-                // Barber is running over. Instead of assuming they'll finish
-                // instantly, add a grace buffer that grows the longer they're overdue.
-                $overdueMinutes = $now->diffInMinutes($expectedFreeAt);
-                $buffer = min(10, max(3, (int) ($overdueMinutes * 0.5)));
-                return $now->copy()->addMinutes($buffer);
-            }
-            return $now->copy();
-        })->values()->all();
-
-        // Step 2: simulate everyone currently waiting ahead of this new customer
         $waitingBookings = Booking::where('salon_id', $salon->id)
             ->where('status', 'waiting')
             ->orderBy('created_at')
@@ -61,16 +38,86 @@ class QueueService
             $freeTimes[$minIndex] = $freeTimes[$minIndex]->copy()->addMinutes($duration);
         }
 
-        // Step 3: place the NEW booking into whichever chair is free soonest
         $minIndex = $this->earliestFreeChairIndex($freeTimes);
         $expectedStart = $freeTimes[$minIndex];
         $waitMinutes = max(0, $now->diffInMinutes($expectedStart, false));
 
         return [
             'estimated_wait_minutes' => (int) round($waitMinutes),
-            'expected_start_at' => $expectedStart->toDateTimeString(),
+            'expected_start_at' => $expectedStart->toIso8601String(),
             'position_in_queue' => $waitingBookings->count() + 1,
         ];
+    }
+
+    /**
+     * Estimates wait for an EXISTING booking — only counts people genuinely
+     * ahead of it, not itself or people behind it. Also flags whether the
+     * estimate is "anchored" to a real running chair (trustworthy, tickable)
+     * or purely projected from assumed durations (should not tick per-second).
+     */
+    public function estimateWaitForBooking(Booking $booking): array
+    {
+        $salon = $booking->salon;
+        $chairs = $salon->chairs;
+        $now = now();
+
+        if ($chairs->isEmpty()) {
+            return [
+                'estimated_wait_minutes' => null,
+                'expected_start_at' => null,
+                'is_anchored' => false,
+            ];
+        }
+
+        $isAnchored = $chairs->contains(function ($chair) {
+            return $chair->status === 'occupied' && $chair->currentBooking && $chair->currentBooking->started_at;
+        });
+
+        $freeTimes = $this->computeChairFreeTimes($chairs, $now);
+
+        $bookingsAhead = Booking::where('salon_id', $salon->id)
+            ->where('status', 'waiting')
+            ->where('created_at', '<', $booking->created_at)
+            ->orderBy('created_at')
+            ->with('service')
+            ->get();
+
+        foreach ($bookingsAhead as $ahead) {
+            $minIndex = $this->earliestFreeChairIndex($freeTimes);
+            $duration = $ahead->service->avg_duration_minutes ?? 20;
+            $freeTimes[$minIndex] = $freeTimes[$minIndex]->copy()->addMinutes($duration);
+        }
+
+        $minIndex = $this->earliestFreeChairIndex($freeTimes);
+        $expectedStart = $freeTimes[$minIndex];
+        $waitMinutes = max(0, $now->diffInMinutes($expectedStart, false));
+
+        return [
+            'estimated_wait_minutes' => (int) round($waitMinutes),
+            'expected_start_at' => $expectedStart->toIso8601String(),
+            'is_anchored' => $isAnchored,
+        ];
+    }
+
+    private function computeChairFreeTimes($chairs, Carbon $now): array
+    {
+        return $chairs->map(function ($chair) use ($now) {
+            if ($chair->status === 'occupied' && $chair->currentBooking && $chair->currentBooking->started_at) {
+                $booking = $chair->currentBooking;
+                $duration = $booking->service->avg_duration_minutes ?? 20;
+                $startedAt = Carbon::parse($booking->started_at);
+                $expectedFreeAt = $startedAt->copy()->addMinutes($duration);
+
+                if ($expectedFreeAt->greaterThan($now)) {
+                    return $expectedFreeAt;
+                }
+
+                $overdueMinutes = $now->diffInMinutes($expectedFreeAt);
+                $buffer = min(10, max(3, (int) ($overdueMinutes * 0.5)));
+                return $now->copy()->addMinutes($buffer);
+            }
+            return $now->copy();
+        })->values()->all();
     }
 
     private function earliestFreeChairIndex(array $freeTimes): int
