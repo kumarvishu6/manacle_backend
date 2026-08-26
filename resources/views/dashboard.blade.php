@@ -103,7 +103,12 @@
             </div>
 
             <!-- Queue -->
-            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Waiting Queue</h2>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Waiting Queue</h2>
+                <button @click="openWalkInForm()" class="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800">
+                    + Add walk-in
+                </button>
+            </div>
             <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <template x-if="waitingList().length === 0">
                     <p class="text-sm text-gray-400 p-4">No one in the queue right now.</p>
@@ -125,6 +130,43 @@
         </main>
     </div>
 
+    <!-- ADD WALK-IN MODAL -->
+    <div x-show="showWalkInForm" x-cloak class="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <h3 class="text-lg font-bold mb-4">Add walk-in</h3>
+
+            <label class="text-sm font-medium text-gray-600">Name</label>
+            <input x-model="walkInName" type="text" placeholder="Customer name"
+                class="w-full mt-1 mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+
+            <label class="text-sm font-medium text-gray-600">Phone (optional)</label>
+            <input x-model="walkInPhone" type="text" placeholder="9876543210"
+                class="w-full mt-1 mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+
+            <label class="text-sm font-medium text-gray-600">Service</label>
+            <select x-model="walkInServiceId"
+                class="w-full mt-1 mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                <option value="" disabled selected>Select a service</option>
+                <template x-for="service in services" :key="service.id">
+                    <option :value="service.id" x-text="service.name + ' — ₹' + service.price"></option>
+                </template>
+            </select>
+
+            <p x-show="walkInError" x-text="walkInError" class="text-red-500 text-xs mb-3"></p>
+
+            <div class="flex gap-2">
+                <button @click="closeWalkInForm()"
+                    class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @click="submitWalkIn()" :disabled="walkInLoading"
+                    class="flex-1 bg-black text-white py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50">
+                    <span x-text="walkInLoading ? 'Adding...' : 'Add'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
 <script>
 function dashboardApp() {
     return {
@@ -139,7 +181,15 @@ function dashboardApp() {
         selectedSalon: null,
         chairs: [],
         queue: [],
+        services: [],
         pollTimer: null,
+
+        showWalkInForm: false,
+        walkInName: '',
+        walkInPhone: '',
+        walkInServiceId: '',
+        walkInLoading: false,
+        walkInError: null,
 
         init() {
             this.token = sessionStorage.getItem('manacle_token');
@@ -200,9 +250,16 @@ function dashboardApp() {
             this.salons = data;
             if (data.length > 0) {
                 this.selectedSalon = data[0];
+                this.loadServices();
                 this.loadQueueData();
                 this.pollTimer = setInterval(() => this.loadQueueData(), 15000);
             }
+        },
+
+        async loadServices() {
+            if (!this.selectedSalon) return;
+            const res = await fetch(`/api/salons/${this.selectedSalon.id}/services`, { headers: this.headers() });
+            this.services = await res.json();
         },
 
         async loadQueueData() {
@@ -247,6 +304,51 @@ function dashboardApp() {
                 method: 'POST', headers: this.headers(),
             });
             this.loadQueueData();
+        },
+
+        openWalkInForm() {
+            this.walkInName = '';
+            this.walkInPhone = '';
+            this.walkInServiceId = this.services.length === 1 ? this.services[0].id : '';
+            this.walkInError = null;
+            this.showWalkInForm = true;
+        },
+
+        closeWalkInForm() {
+            this.showWalkInForm = false;
+        },
+
+        async submitWalkIn() {
+            this.walkInError = null;
+
+            if (!this.walkInName.trim()) {
+                this.walkInError = 'Name is required.';
+                return;
+            }
+            if (!this.walkInServiceId) {
+                this.walkInError = 'Please select a service.';
+                return;
+            }
+
+            this.walkInLoading = true;
+            try {
+                const res = await fetch(`/api/salons/${this.selectedSalon.id}/walk-ins`, {
+                    method: 'POST',
+                    headers: this.headers(),
+                    body: JSON.stringify({
+                        name: this.walkInName,
+                        phone: this.walkInPhone || null,
+                        service_id: this.walkInServiceId,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to add walk-in');
+                this.showWalkInForm = false;
+                this.loadQueueData();
+            } catch (e) {
+                this.walkInError = e.message;
+            }
+            this.walkInLoading = false;
         },
     }
 }
