@@ -11,6 +11,7 @@ use App\Models\Staff;
 use App\Models\User;
 use App\Services\QueueService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class BookingController extends Controller
@@ -192,13 +193,13 @@ class BookingController extends Controller
         ]);
     }
 
+    /**
+     * Assigns a waiting booking to a chair. Wrapped in a locked transaction
+     * so two near-simultaneous requests can't both grab the same chair.
+     */
     public function start(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
-
-        if ($booking->status !== 'waiting') {
-            return response()->json(['message' => 'This booking is not waiting.'], 422);
-        }
 
         $validator = Validator::make($request->all(), [
             'chair_id' => 'required|exists:chairs,id',
@@ -208,71 +209,107 @@ class BookingController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $chair = Chair::where('id', $request->chair_id)
-            ->where('salon_id', $booking->salon_id)
-            ->first();
+        try {
+            $result = DB::transaction(function () use ($request, $booking) {
+                $freshBooking = Booking::where('id', $booking->id)->lockForUpdate()->first();
 
-        if (! $chair) {
-            return response()->json(['message' => 'Chair not found at this salon.'], 422);
+                if ($freshBooking->status !== 'waiting') {
+                    throw new \RuntimeException('This booking is not waiting.');
+                }
+
+                $chair = Chair::where('id', $request->chair_id)
+                    ->where('salon_id', $freshBooking->salon_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $chair) {
+                    throw new \RuntimeException('Chair not found at this salon.');
+                }
+
+                if ($chair->status !== 'idle') {
+                    throw new \RuntimeException('This chair is currently occupied.');
+                }
+
+                $freshBooking->update([
+                    'status' => 'in_progress',
+                    'chair_id' => $chair->id,
+                    'started_at' => now(),
+                ]);
+
+                $chair->update([
+                    'status' => 'occupied',
+                    'current_booking_id' => $freshBooking->id,
+                ]);
+
+                return $freshBooking->fresh();
+            });
+
+            return response()->json($result);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        if ($chair->status !== 'idle') {
-            return response()->json(['message' => 'This chair is currently occupied.'], 422);
-        }
-
-        $booking->update([
-            'status' => 'in_progress',
-            'chair_id' => $chair->id,
-            'started_at' => now(),
-        ]);
-
-        $chair->update([
-            'status' => 'occupied',
-            'current_booking_id' => $booking->id,
-        ]);
-
-        return response()->json($booking->fresh());
     }
 
     public function complete(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
 
-        if ($booking->status !== 'in_progress') {
-            return response()->json(['message' => 'This booking is not in progress.'], 422);
+        try {
+            $result = DB::transaction(function () use ($booking) {
+                $freshBooking = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+                if ($freshBooking->status !== 'in_progress') {
+                    throw new \RuntimeException('This booking is not in progress.');
+                }
+
+                $freshBooking->update([
+                    'status' => 'done',
+                    'ended_at' => now(),
+                ]);
+
+                if ($freshBooking->chair_id) {
+                    $chair = Chair::where('id', $freshBooking->chair_id)->lockForUpdate()->first();
+                    $chair->update([
+                        'status' => 'idle',
+                        'current_booking_id' => null,
+                    ]);
+                }
+
+                $actualMinutes = $freshBooking->started_at->diffInMinutes($freshBooking->ended_at);
+                $service = $freshBooking->service;
+                $newAvg = (int) round(($service->avg_duration_minutes + $actualMinutes) / 2);
+                $service->update(['avg_duration_minutes' => max(5, $newAvg)]);
+
+                return $freshBooking->fresh();
+            });
+
+            return response()->json($result);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $booking->update([
-            'status' => 'done',
-            'ended_at' => now(),
-        ]);
-
-        if ($booking->chair) {
-            $booking->chair->update([
-                'status' => 'idle',
-                'current_booking_id' => null,
-            ]);
-        }
-
-        $actualMinutes = $booking->started_at->diffInMinutes($booking->ended_at);
-        $service = $booking->service;
-        $newAvg = (int) round(($service->avg_duration_minutes + $actualMinutes) / 2);
-        $service->update(['avg_duration_minutes' => max(5, $newAvg)]);
-
-        return response()->json($booking->fresh());
     }
 
     public function noShow(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
 
-        if ($booking->status !== 'waiting') {
-            return response()->json(['message' => 'This booking is not waiting.'], 422);
+        try {
+            $result = DB::transaction(function () use ($booking) {
+                $freshBooking = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+                if ($freshBooking->status !== 'waiting') {
+                    throw new \RuntimeException('This booking is not waiting.');
+                }
+
+                $freshBooking->update(['status' => 'no_show']);
+
+                return $freshBooking->fresh();
+            });
+
+            return response()->json($result);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $booking->update(['status' => 'no_show']);
-
-        return response()->json($booking->fresh());
     }
 
     public function cancel(Request $request, Booking $booking)
@@ -283,13 +320,23 @@ class BookingController extends Controller
             return response()->json(['message' => 'This is not your booking.'], 403);
         }
 
-        if ($booking->status !== 'waiting') {
-            return response()->json(['message' => 'This booking can no longer be cancelled.'], 422);
+        try {
+            $result = DB::transaction(function () use ($booking) {
+                $freshBooking = Booking::where('id', $booking->id)->lockForUpdate()->first();
+
+                if ($freshBooking->status !== 'waiting') {
+                    throw new \RuntimeException('This booking can no longer be cancelled.');
+                }
+
+                $freshBooking->update(['status' => 'cancelled']);
+
+                return $freshBooking->fresh();
+            });
+
+            return response()->json($result);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $booking->update(['status' => 'cancelled']);
-
-        return response()->json($booking->fresh());
     }
 
     private function authorizeQueueAccess($user, Salon $salon): void

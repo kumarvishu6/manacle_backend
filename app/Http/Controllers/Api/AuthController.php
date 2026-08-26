@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
@@ -22,6 +23,17 @@ class AuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $rateLimitKey = 'send-otp:' . $request->phone;
+
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 5)) {
+            $seconds = RateLimiter::availableIn($rateLimitKey);
+            return response()->json([
+                'message' => "Too many OTP requests. Try again in {$seconds} seconds.",
+            ], 429);
+        }
+
+        RateLimiter::hit($rateLimitKey, 600); // 5 attempts per 10 minutes
+
         $otp = rand(100000, 999999);
 
         $user = User::firstOrCreate(
@@ -31,14 +43,19 @@ class AuthController extends Controller
 
         $user->otp_code = $otp;
         $user->otp_expires_at = now()->addMinutes(5);
+        $user->otp_attempts = 0;
         $user->save();
 
         // TODO: integrate real SMS provider (MSG91/Twilio/2Factor) here later.
-        // For now, we return the OTP directly so we can test the flow.
-        return response()->json([
+        $response = [
             'message' => 'OTP sent successfully',
-            'dev_otp' => $otp, // REMOVE this field once real SMS is wired in
-        ]);
+        ];
+
+        if (config('app.show_dev_otp')) {
+            $response['dev_otp'] = $otp;
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -61,7 +78,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'User not found'], 404);
         }
 
+        if (($user->otp_attempts ?? 0) >= 5) {
+            return response()->json([
+                'message' => 'Too many incorrect attempts. Please request a new OTP.',
+            ], 429);
+        }
+
         if ($user->otp_code !== $request->otp) {
+            $user->increment('otp_attempts');
             return response()->json(['message' => 'Invalid OTP'], 401);
         }
 
@@ -72,6 +96,7 @@ class AuthController extends Controller
         // OTP correct — clear it, mark verified, issue token
         $user->otp_code = null;
         $user->otp_expires_at = null;
+        $user->otp_attempts = 0;
         $user->phone_verified_at = now();
         $user->save();
 

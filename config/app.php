@@ -43,6 +43,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Show Dev OTP
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, OTP codes are returned directly in the API response for
+    | local testing. Must be disabled before any real deployment — otherwise
+    | anyone could log in as any phone number without receiving a real SMS.
+    |
+    */
+
+    'show_dev_otp' => (bool) env('SHOW_DEV_OTP', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |
