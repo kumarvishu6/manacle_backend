@@ -8,9 +8,6 @@ use Carbon\Carbon;
 
 class QueueService
 {
-    /**
-     * Simulates the queue to estimate when a NEW booking would actually start.
-     */
     public function estimateWait(Salon $salon, int $serviceDurationMinutes): array
     {
         $chairs = $salon->chairs;
@@ -29,6 +26,7 @@ class QueueService
         $waitingBookings = Booking::where('salon_id', $salon->id)
             ->where('status', 'waiting')
             ->orderBy('created_at')
+            ->orderBy('id')
             ->with('service')
             ->get();
 
@@ -51,9 +49,9 @@ class QueueService
 
     /**
      * Estimates wait for an EXISTING booking — only counts people genuinely
-     * ahead of it, not itself or people behind it. Also flags whether the
-     * estimate is "anchored" to a real running chair (trustworthy, tickable)
-     * or purely projected from assumed durations (should not tick per-second).
+     * ahead of it, not itself or people behind it. Uses created_at + id as
+     * a composite ordering so bookings created within the same second are
+     * still correctly and deterministically ordered.
      */
     public function estimateWaitForBooking(Booking $booking): array
     {
@@ -77,8 +75,15 @@ class QueueService
 
         $bookingsAhead = Booking::where('salon_id', $salon->id)
             ->where('status', 'waiting')
-            ->where('created_at', '<', $booking->created_at)
+            ->where(function ($query) use ($booking) {
+                $query->where('created_at', '<', $booking->created_at)
+                    ->orWhere(function ($query) use ($booking) {
+                        $query->where('created_at', $booking->created_at)
+                            ->where('id', '<', $booking->id);
+                    });
+            })
             ->orderBy('created_at')
+            ->orderBy('id')
             ->with('service')
             ->get();
 

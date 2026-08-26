@@ -173,7 +173,13 @@ class BookingController extends Controller
         if ($booking->status === 'waiting') {
             $peopleAhead = Booking::where('salon_id', $booking->salon_id)
                 ->where('status', 'waiting')
-                ->where('created_at', '<', $booking->created_at)
+                ->where(function ($query) use ($booking) {
+                    $query->where('created_at', '<', $booking->created_at)
+                        ->orWhere(function ($query) use ($booking) {
+                            $query->where('created_at', $booking->created_at)
+                                ->where('id', '<', $booking->id);
+                        });
+                })
                 ->count();
 
             $positionInQueue = $peopleAhead + 1;
