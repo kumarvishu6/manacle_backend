@@ -8,6 +8,7 @@ use App\Models\Chair;
 use App\Models\Salon;
 use App\Models\Service;
 use App\Models\Staff;
+use App\Models\User;
 use App\Services\QueueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -59,6 +60,73 @@ class BookingController extends Controller
 
         return response()->json([
             'booking' => $booking,
+            'estimated_wait_minutes' => $estimate['estimated_wait_minutes'],
+            'expected_start_at' => $estimate['expected_start_at'],
+            'position_in_queue' => $estimate['position_in_queue'],
+        ], 201);
+    }
+
+    /**
+     * Staff adds a walk-in customer directly to the queue — someone who
+     * showed up without booking through the app. Reuses the same queue
+     * math as everyone else; no special treatment, just a different entry point.
+     */
+    public function walkIn(Request $request, Salon $salon)
+    {
+        $this->authorizeQueueAccess($request->user(), $salon);
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|min:10|max:15',
+            'service_id' => 'required|exists:services,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $service = Service::where('id', $request->service_id)
+            ->where('salon_id', $salon->id)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $service) {
+            return response()->json(['message' => 'This service is not available at this salon.'], 422);
+        }
+
+        if ($request->filled('phone')) {
+            $customer = User::firstOrCreate(
+                ['phone' => $request->phone],
+                ['name' => $request->name, 'role' => 'customer']
+            );
+
+            $existing = Booking::where('customer_id', $customer->id)
+                ->where('salon_id', $salon->id)
+                ->whereIn('status', ['waiting', 'in_progress'])
+                ->first();
+
+            if ($existing) {
+                return response()->json(['message' => 'This customer already has an active booking here.'], 422);
+            }
+        } else {
+            $customer = User::create([
+                'name' => $request->name,
+                'role' => 'customer',
+            ]);
+        }
+
+        $estimate = $this->queueService->estimateWait($salon, $service->avg_duration_minutes);
+
+        $booking = Booking::create([
+            'customer_id' => $customer->id,
+            'salon_id' => $salon->id,
+            'service_id' => $service->id,
+            'status' => 'waiting',
+        ]);
+
+        return response()->json([
+            'booking' => $booking,
+            'customer' => $customer,
             'estimated_wait_minutes' => $estimate['estimated_wait_minutes'],
             'expected_start_at' => $estimate['expected_start_at'],
             'position_in_queue' => $estimate['position_in_queue'],
