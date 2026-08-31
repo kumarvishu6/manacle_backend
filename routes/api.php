@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/salons', [SalonController::class, 'index']);
     Route::get('/salons/{salon}', [SalonController::class, 'show']);
+    Route::get('/salons/{salon}/wait-preview', [SalonController::class, 'waitPreview']);
     Route::get('/salons/{salon}/chairs', [ChairController::class, 'index']);
     Route::get('/salons/{salon}/services', [ServiceController::class, 'index']);
 

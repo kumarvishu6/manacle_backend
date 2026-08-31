@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Salon;
+use App\Services\QueueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class SalonController extends Controller
 {
+    public function __construct(protected QueueService $queueService)
+    {
+    }
+
     /**
      * List salons. Customers see only active ones.
      * Salon owners see only their own (any status).
@@ -66,6 +71,27 @@ class SalonController extends Controller
         $salon->load(['chairs', 'services']);
 
         return response()->json($salon);
+    }
+
+    /**
+     * Live wait-time preview for the home screen — a rough estimate a
+     * customer can see before picking a specific service. Uses the
+     * average duration across the salon's active services, since we
+     * don't know yet which one they'll book.
+     */
+    public function waitPreview(Salon $salon)
+    {
+        $salon->load('chairs');
+
+        $avgDuration = $salon->services()->where('is_active', true)->avg('avg_duration_minutes');
+        $avgDuration = $avgDuration ? (int) round($avgDuration) : 20;
+
+        $estimate = $this->queueService->estimateWait($salon, $avgDuration);
+
+        return response()->json([
+            'estimated_wait_minutes' => $estimate['estimated_wait_minutes'],
+            'position_in_queue' => $estimate['position_in_queue'],
+        ]);
     }
 
     /**
