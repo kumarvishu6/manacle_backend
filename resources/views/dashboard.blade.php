@@ -4,83 +4,108 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manacle — Staff Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } }
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Fraunces', 'serif'],
+                    },
+                    colors: {
+                        paper: '#FAF8F4',
+                        bottle: '#24463A',
+                        brass: '#A67C3D',
+                        clay: '#A64B3A',
+                        line: '#DCD6C8',
+                    },
+                },
+            },
         }
     </script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>[x-cloak] { display: none !important; }</style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800" x-data="dashboardApp()" x-init="init()">
+<body class="bg-paper font-sans text-stone-800" x-data="dashboardApp()" x-init="init()">
 
     <!-- LOGIN SCREEN -->
     <div x-show="!token" class="min-h-screen flex items-center justify-center px-4">
-        <div class="bg-white shadow-lg rounded-2xl p-8 w-full max-w-sm border border-gray-100">
-            <h1 class="text-2xl font-bold mb-1">Manacle</h1>
-            <p class="text-gray-500 text-sm mb-6">Staff / Owner Dashboard</p>
+        <div class="bg-white p-8 w-full max-w-sm border border-line rounded-lg">
+            <p class="text-sm text-stone-500 mb-1">Manacle</p>
+            <h1 class="font-display text-2xl font-semibold text-bottle mb-6">Staff sign in</h1>
 
             <template x-if="!otpSent">
                 <div>
-                    <label class="text-sm font-medium text-gray-600">Phone Number</label>
+                    <label class="text-sm font-medium text-stone-600">Phone number</label>
                     <input x-model="phone" type="text" placeholder="9876543210"
-                        class="w-full mt-1 mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                        class="w-full mt-1 mb-4 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
                     <button @click="sendOtp()" :disabled="loading"
-                        class="w-full bg-black text-white py-2 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50">
-                        <span x-text="loading ? 'Sending...' : 'Send OTP'"></span>
+                        class="w-full bg-bottle text-white py-2 rounded-md font-medium hover:bg-bottle/90 disabled:opacity-50">
+                        <span x-text="loading ? 'Sending…' : 'Send code'"></span>
                     </button>
                 </div>
             </template>
 
             <template x-if="otpSent">
                 <div>
-                    <label class="text-sm font-medium text-gray-600">Enter OTP</label>
+                    <label class="text-sm font-medium text-stone-600">Enter code</label>
                     <input x-model="otp" type="text" placeholder="6-digit code"
-                        class="w-full mt-1 mb-2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
-                    <p x-show="devOtp" class="text-xs text-amber-600 mb-4">
-                        Dev mode — OTP: <span class="font-semibold" x-text="devOtp"></span>
+                        class="w-full mt-1 mb-2 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+                    <p x-show="devOtp" class="text-xs text-brass mb-4">
+                        Dev mode — code: <span class="font-semibold" x-text="devOtp"></span>
                     </p>
                     <button @click="verifyOtp()" :disabled="loading"
-                        class="w-full bg-black text-white py-2 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50">
-                        <span x-text="loading ? 'Verifying...' : 'Verify & Login'"></span>
+                        class="w-full bg-bottle text-white py-2 rounded-md font-medium hover:bg-bottle/90 disabled:opacity-50">
+                        <span x-text="loading ? 'Verifying…' : 'Sign in'"></span>
                     </button>
                 </div>
             </template>
 
-            <p x-show="error" x-text="error" class="text-red-500 text-sm mt-4"></p>
+            <p x-show="error" x-text="error" class="text-clay text-sm mt-4"></p>
         </div>
     </div>
 
     <!-- DASHBOARD SCREEN -->
     <div x-show="token" x-cloak>
-        <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <header class="border-b border-line px-6 py-5 flex items-center justify-between max-w-4xl mx-auto">
             <div>
-                <h1 class="text-lg font-bold">Manacle Dashboard</h1>
-                <p class="text-sm text-gray-500" x-text="selectedSalon ? selectedSalon.name : 'Loading salon...'"></p>
+                <p class="text-sm text-stone-500">Manacle</p>
+                <h1 class="font-display text-2xl font-semibold text-bottle" x-text="selectedSalon ? selectedSalon.name : 'Loading…'"></h1>
             </div>
-            <button @click="logout()" class="text-sm text-gray-500 hover:text-red-500">Logout</button>
+            <button @click="logout()" class="text-sm text-stone-500 hover:text-clay">Sign out</button>
         </header>
 
-        <main class="p-6 max-w-5xl mx-auto">
+        <main class="px-6 py-8 max-w-4xl mx-auto">
+
             <!-- Chairs -->
-            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Chairs</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <div class="flex items-baseline justify-between mb-4">
+                <h2 class="text-sm font-medium text-stone-600">Chairs</h2>
+                <button x-show="canManageStaff" @click="openAddChairForm()" class="text-sm bg-bottle text-white px-3 py-1.5 rounded-md hover:bg-bottle/90">
+                    Add chair
+                </button>
+            </div>
+            <template x-if="chairs.length === 0">
+                <p class="text-sm text-stone-400 mb-10">No chairs yet. Add one to start seating customers.</p>
+            </template>
+            <div class="flex flex-wrap gap-4 mb-10">
                 <template x-for="chair in chairs" :key="chair.id">
-                    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold" x-text="chair.label"></span>
-                            <span :class="chair.status === 'idle' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
-                                class="text-xs px-2 py-0.5 rounded-full font-medium" x-text="chair.status"></span>
+                    <div class="border border-line rounded-lg p-4 w-56">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="font-medium text-stone-800" x-text="chair.label"></span>
+                            <span :class="chair.status === 'idle' ? 'bg-bottle/10 text-bottle' : 'bg-clay/10 text-clay'"
+                                class="text-xs px-2 py-0.5 rounded" x-text="chair.status"></span>
                         </div>
 
                         <template x-if="chair.status === 'occupied'">
                             <div>
-                                <p class="text-sm text-gray-600" x-text="currentBookingFor(chair)?.customer?.name || 'Customer'"></p>
-                                <p class="text-xs text-gray-400 mb-3" x-text="currentBookingFor(chair)?.service?.name"></p>
+                                <p class="text-sm text-stone-700" x-text="currentBookingFor(chair)?.customer?.name || 'Customer'"></p>
+                                <p class="text-xs text-stone-400 mb-3" x-text="currentBookingFor(chair)?.service?.name"></p>
                                 <button @click="completeBooking(currentBookingFor(chair).id)"
-                                    class="w-full bg-black text-white text-sm py-1.5 rounded-lg hover:bg-gray-800">
-                                    Mark Done
+                                    class="w-full bg-bottle text-white text-sm py-1.5 rounded-md hover:bg-bottle/90">
+                                    Mark done
                                 </button>
                             </div>
                         </template>
@@ -89,79 +114,165 @@
                             <div>
                                 <template x-if="nextWaiting()">
                                     <button @click="startBooking(nextWaiting().id, chair.id)"
-                                        class="w-full bg-green-600 text-white text-sm py-1.5 rounded-lg hover:bg-green-700">
+                                        class="w-full bg-brass text-white text-sm py-1.5 rounded-md hover:bg-brass/90">
                                         Start: <span x-text="nextWaiting()?.customer?.name"></span>
                                     </button>
                                 </template>
                                 <template x-if="!nextWaiting()">
-                                    <p class="text-sm text-gray-400">No one waiting</p>
+                                    <p class="text-sm text-stone-400">No one waiting</p>
                                 </template>
                             </div>
                         </template>
+
+                        <button x-show="canManageStaff && chair.status === 'idle'" @click="removeChair(chair.id)"
+                            class="text-xs text-stone-400 hover:text-clay mt-3">
+                            Remove chair
+                        </button>
                     </div>
                 </template>
             </div>
 
             <!-- Queue -->
-            <div class="flex items-center justify-between mb-3">
-                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Waiting Queue</h2>
-                <button @click="openWalkInForm()" class="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800">
-                    + Add walk-in
+            <div class="flex items-baseline justify-between mb-4">
+                <h2 class="text-sm font-medium text-stone-600">Waiting queue</h2>
+                <button @click="openWalkInForm()" class="text-sm bg-bottle text-white px-3 py-1.5 rounded-md hover:bg-bottle/90">
+                    Add walk-in
                 </button>
             </div>
-            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div class="border-t border-line mb-10">
                 <template x-if="waitingList().length === 0">
-                    <p class="text-sm text-gray-400 p-4">No one in the queue right now.</p>
+                    <p class="text-sm text-stone-400 py-6">No one in the queue right now. Add a walk-in to get started.</p>
                 </template>
                 <template x-for="(booking, index) in waitingList()" :key="booking.id">
-                    <div class="flex items-center justify-between px-4 py-3 border-b last:border-b-0 border-gray-100">
-                        <div>
-                            <p class="font-medium text-sm">
-                                <span x-text="index + 1"></span>. <span x-text="booking.customer?.name"></span>
-                            </p>
-                            <p class="text-xs text-gray-400" x-text="booking.service?.name + ' · ' + (booking.customer?.phone || '')"></p>
+                    <div class="flex items-baseline gap-4 py-4 border-b border-line">
+                        <span class="font-display text-2xl tabular-nums text-brass w-8 text-right" x-text="index + 1"></span>
+                        <div class="flex-1">
+                            <p class="font-medium text-stone-800" x-text="booking.customer?.name"></p>
+                            <p class="text-sm text-stone-500" x-text="booking.service?.name"></p>
+                            <p class="text-xs text-stone-400" x-text="booking.customer?.phone || ''"></p>
                         </div>
-                        <button @click="noShow(booking.id)" class="text-xs text-gray-400 hover:text-red-500">
+                        <button @click="noShow(booking.id)" class="text-xs text-stone-400 hover:text-clay">
                             No-show
                         </button>
                     </div>
                 </template>
             </div>
+
+            <!-- Staff -->
+            <template x-if="canManageStaff">
+                <div>
+                    <div class="flex items-baseline justify-between mb-4">
+                        <h2 class="text-sm font-medium text-stone-600">Staff</h2>
+                        <button @click="openAddStaffForm()" class="text-sm bg-bottle text-white px-3 py-1.5 rounded-md hover:bg-bottle/90">
+                            Add staff
+                        </button>
+                    </div>
+                    <div class="border-t border-line">
+                        <template x-if="staffList.length === 0">
+                            <p class="text-sm text-stone-400 py-6">No staff added yet. Add someone to let them run this salon independently.</p>
+                        </template>
+                        <template x-for="member in staffList" :key="member.id">
+                            <div class="flex items-center justify-between py-4 border-b border-line">
+                                <div>
+                                    <p class="font-medium text-stone-800" x-text="member.user?.name"></p>
+                                    <p class="text-sm text-stone-500" x-text="member.user?.phone"></p>
+                                </div>
+                                <button @click="removeStaff(member.id)" class="text-xs text-stone-400 hover:text-clay">
+                                    Remove
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
         </main>
     </div>
 
     <!-- ADD WALK-IN MODAL -->
-    <div x-show="showWalkInForm" x-cloak class="fixed inset-0 bg-black/40 flex items-center justify-center px-4 z-50">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-sm">
-            <h3 class="text-lg font-bold mb-4">Add walk-in</h3>
+    <div x-show="showWalkInForm" x-cloak class="fixed inset-0 bg-bottle/20 flex items-center justify-center px-4 z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm border border-line">
+            <h3 class="font-display text-lg font-semibold text-bottle mb-4">Add walk-in</h3>
 
-            <label class="text-sm font-medium text-gray-600">Name</label>
+            <label class="text-sm font-medium text-stone-600">Name</label>
             <input x-model="walkInName" type="text" placeholder="Customer name"
-                class="w-full mt-1 mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                class="w-full mt-1 mb-3 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
 
-            <label class="text-sm font-medium text-gray-600">Phone (optional)</label>
+            <label class="text-sm font-medium text-stone-600">Phone (optional)</label>
             <input x-model="walkInPhone" type="text" placeholder="9876543210"
-                class="w-full mt-1 mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                class="w-full mt-1 mb-3 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
 
-            <label class="text-sm font-medium text-gray-600">Service</label>
+            <label class="text-sm font-medium text-stone-600">Service</label>
             <select x-model="walkInServiceId"
-                class="w-full mt-1 mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black">
+                class="w-full mt-1 mb-4 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
                 <option value="" disabled selected>Select a service</option>
                 <template x-for="service in services" :key="service.id">
                     <option :value="service.id" x-text="service.name + ' — ₹' + service.price"></option>
                 </template>
             </select>
 
-            <p x-show="walkInError" x-text="walkInError" class="text-red-500 text-xs mb-3"></p>
+            <p x-show="walkInError" x-text="walkInError" class="text-clay text-xs mb-3"></p>
 
             <div class="flex gap-2">
                 <button @click="closeWalkInForm()"
-                    class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50">
+                    class="flex-1 border border-line text-stone-700 py-2 rounded-md hover:border-stone-400">
                     Cancel
                 </button>
                 <button @click="submitWalkIn()" :disabled="walkInLoading"
-                    class="flex-1 bg-black text-white py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50">
-                    <span x-text="walkInLoading ? 'Adding...' : 'Add'"></span>
+                    class="flex-1 bg-bottle text-white py-2 rounded-md hover:bg-bottle/90 disabled:opacity-50">
+                    <span x-text="walkInLoading ? 'Adding…' : 'Add'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD STAFF MODAL -->
+    <div x-show="showAddStaffForm" x-cloak class="fixed inset-0 bg-bottle/20 flex items-center justify-center px-4 z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm border border-line">
+            <h3 class="font-display text-lg font-semibold text-bottle mb-1">Add staff</h3>
+            <p class="text-sm text-stone-500 mb-4">They'll sign in with this phone number using the same code you just used.</p>
+
+            <label class="text-sm font-medium text-stone-600">Name</label>
+            <input x-model="staffName" type="text" placeholder="Staff member's name"
+                class="w-full mt-1 mb-3 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <label class="text-sm font-medium text-stone-600">Phone</label>
+            <input x-model="staffPhone" type="text" placeholder="9876543210"
+                class="w-full mt-1 mb-4 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <p x-show="staffError" x-text="staffError" class="text-clay text-xs mb-3"></p>
+
+            <div class="flex gap-2">
+                <button @click="closeAddStaffForm()"
+                    class="flex-1 border border-line text-stone-700 py-2 rounded-md hover:border-stone-400">
+                    Cancel
+                </button>
+                <button @click="submitAddStaff()" :disabled="staffLoading"
+                    class="flex-1 bg-bottle text-white py-2 rounded-md hover:bg-bottle/90 disabled:opacity-50">
+                    <span x-text="staffLoading ? 'Adding…' : 'Add'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD CHAIR MODAL -->
+    <div x-show="showAddChairForm" x-cloak class="fixed inset-0 bg-bottle/20 flex items-center justify-center px-4 z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm border border-line">
+            <h3 class="font-display text-lg font-semibold text-bottle mb-4">Add chair</h3>
+
+            <label class="text-sm font-medium text-stone-600">Label</label>
+            <input x-model="chairLabel" type="text" placeholder="e.g. Chair 2"
+                class="w-full mt-1 mb-4 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <p x-show="chairError" x-text="chairError" class="text-clay text-xs mb-3"></p>
+
+            <div class="flex gap-2">
+                <button @click="closeAddChairForm()"
+                    class="flex-1 border border-line text-stone-700 py-2 rounded-md hover:border-stone-400">
+                    Cancel
+                </button>
+                <button @click="submitAddChair()" :disabled="chairLoading"
+                    class="flex-1 bg-bottle text-white py-2 rounded-md hover:bg-bottle/90 disabled:opacity-50">
+                    <span x-text="chairLoading ? 'Adding…' : 'Add'"></span>
                 </button>
             </div>
         </div>
@@ -182,6 +293,7 @@ function dashboardApp() {
         chairs: [],
         queue: [],
         services: [],
+        userRole: null,
         pollTimer: null,
 
         showWalkInForm: false,
@@ -190,6 +302,22 @@ function dashboardApp() {
         walkInServiceId: '',
         walkInLoading: false,
         walkInError: null,
+
+        staffList: [],
+        showAddStaffForm: false,
+        staffName: '',
+        staffPhone: '',
+        staffLoading: false,
+        staffError: null,
+
+        showAddChairForm: false,
+        chairLabel: '',
+        chairLoading: false,
+        chairError: null,
+
+        get canManageStaff() {
+            return this.userRole === 'salon_owner' || this.userRole === 'super_admin';
+        },
 
         init() {
             this.token = sessionStorage.getItem('manacle_token');
@@ -213,7 +341,7 @@ function dashboardApp() {
                     body: JSON.stringify({ phone: this.phone }),
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
+                if (!res.ok) throw new Error(data.message || 'Failed to send code');
                 this.devOtp = data.dev_otp;
                 this.otpSent = true;
             } catch (e) { this.error = e.message; }
@@ -229,8 +357,9 @@ function dashboardApp() {
                     body: JSON.stringify({ phone: this.phone, otp: this.otp }),
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Invalid OTP');
+                if (!res.ok) throw new Error(data.message || 'Invalid code');
                 this.token = data.token;
+                this.userRole = data.user?.role || null;
                 sessionStorage.setItem('manacle_token', this.token);
                 this.loadSalons();
             } catch (e) { this.error = e.message; }
@@ -252,6 +381,7 @@ function dashboardApp() {
                 this.selectedSalon = data[0];
                 this.loadServices();
                 this.loadQueueData();
+                if (this.canManageStaff) this.loadStaff();
                 this.pollTimer = setInterval(() => this.loadQueueData(), 15000);
             }
         },
@@ -270,6 +400,14 @@ function dashboardApp() {
             ]);
             this.chairs = await chairsRes.json();
             this.queue = await queueRes.json();
+        },
+
+        async loadStaff() {
+            if (!this.selectedSalon) return;
+            try {
+                const res = await fetch(`/api/salons/${this.selectedSalon.id}/staff`, { headers: this.headers() });
+                if (res.ok) this.staffList = await res.json();
+            } catch (e) { /* silently skip if not permitted */ }
         },
 
         currentBookingFor(chair) {
@@ -320,15 +458,8 @@ function dashboardApp() {
 
         async submitWalkIn() {
             this.walkInError = null;
-
-            if (!this.walkInName.trim()) {
-                this.walkInError = 'Name is required.';
-                return;
-            }
-            if (!this.walkInServiceId) {
-                this.walkInError = 'Please select a service.';
-                return;
-            }
+            if (!this.walkInName.trim()) { this.walkInError = 'Name is required.'; return; }
+            if (!this.walkInServiceId) { this.walkInError = 'Please select a service.'; return; }
 
             this.walkInLoading = true;
             try {
@@ -349,6 +480,87 @@ function dashboardApp() {
                 this.walkInError = e.message;
             }
             this.walkInLoading = false;
+        },
+
+        openAddStaffForm() {
+            this.staffName = '';
+            this.staffPhone = '';
+            this.staffError = null;
+            this.showAddStaffForm = true;
+        },
+
+        closeAddStaffForm() {
+            this.showAddStaffForm = false;
+        },
+
+        async submitAddStaff() {
+            this.staffError = null;
+            if (!this.staffName.trim()) { this.staffError = 'Name is required.'; return; }
+            if (!this.staffPhone.trim()) { this.staffError = 'Phone number is required.'; return; }
+
+            this.staffLoading = true;
+            try {
+                const res = await fetch(`/api/salons/${this.selectedSalon.id}/staff`, {
+                    method: 'POST',
+                    headers: this.headers(),
+                    body: JSON.stringify({
+                        name: this.staffName,
+                        phone: this.staffPhone,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to add staff');
+                this.showAddStaffForm = false;
+                this.loadStaff();
+            } catch (e) {
+                this.staffError = e.message;
+            }
+            this.staffLoading = false;
+        },
+
+        async removeStaff(staffId) {
+            await fetch(`/api/staff/${staffId}`, {
+                method: 'DELETE', headers: this.headers(),
+            });
+            this.loadStaff();
+        },
+
+        openAddChairForm() {
+            this.chairLabel = '';
+            this.chairError = null;
+            this.showAddChairForm = true;
+        },
+
+        closeAddChairForm() {
+            this.showAddChairForm = false;
+        },
+
+        async submitAddChair() {
+            this.chairError = null;
+            if (!this.chairLabel.trim()) { this.chairError = 'Label is required.'; return; }
+
+            this.chairLoading = true;
+            try {
+                const res = await fetch(`/api/salons/${this.selectedSalon.id}/chairs`, {
+                    method: 'POST',
+                    headers: this.headers(),
+                    body: JSON.stringify({ label: this.chairLabel }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to add chair');
+                this.showAddChairForm = false;
+                this.loadQueueData();
+            } catch (e) {
+                this.chairError = e.message;
+            }
+            this.chairLoading = false;
+        },
+
+        async removeChair(chairId) {
+            await fetch(`/api/chairs/${chairId}`, {
+                method: 'DELETE', headers: this.headers(),
+            });
+            this.loadQueueData();
         },
     }
 }
