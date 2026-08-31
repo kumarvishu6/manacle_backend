@@ -21,7 +21,7 @@ services:
             - mysql
             - redis
         restart: unless-stopped
-        mem_limit: 400m
+        mem_limit: 300m
     mysql:
         image: 'mysql:8.4'
         ports:
@@ -46,7 +46,7 @@ services:
             retries: 3
             timeout: 5s
         restart: unless-stopped
-        mem_limit: 300m
+        mem_limit: 350m
     redis:
         image: 'redis:alpine'
         ports:
@@ -63,7 +63,7 @@ services:
             retries: 3
             timeout: 5s
         restart: unless-stopped
-        mem_limit: 100m
+        mem_limit: 80m
 networks:
     sail:
         driver: bridge
