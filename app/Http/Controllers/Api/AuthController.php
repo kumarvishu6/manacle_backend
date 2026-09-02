@@ -116,4 +116,16 @@ class AuthController extends Controller
     {
         return response()->json($request->user());
     }
+
+    /**
+     * Real logout — revokes the specific token that made this request,
+     * not just something the client hides locally. Other devices/sessions
+     * this user might be logged in on elsewhere are untouched.
+     */
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json(['message' => 'Logged out successfully']);
+    }
 }
