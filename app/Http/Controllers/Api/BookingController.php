@@ -134,6 +134,25 @@ class BookingController extends Controller
         ], 201);
     }
 
+    /**
+     * The current customer's active booking(s) — lets the app show a
+     * persistent "you have an active booking" banner and route back into
+     * tracking, instead of leaving them with no way back once they've
+     * navigated away from the tracking screen.
+     */
+    public function myActive(Request $request)
+    {
+        $user = $request->user();
+
+        $bookings = Booking::where('customer_id', $user->id)
+            ->whereIn('status', ['waiting', 'in_progress'])
+            ->with(['salon:id,name', 'service:id,name'])
+            ->orderBy('created_at')
+            ->get();
+
+        return response()->json($bookings);
+    }
+
     public function index(Request $request, Salon $salon)
     {
         $this->authorizeQueueAccess($request->user(), $salon);
