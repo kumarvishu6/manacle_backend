@@ -93,6 +93,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'OTP expired'], 401);
         }
 
+        // Check BEFORE we clear/update anything — this tells the app whether
+        // to show the "what's your name?" step right after login.
+        $isNewUser = $user->name === 'User';
+
         // OTP correct — clear it, mark verified, issue token
         $user->otp_code = null;
         $user->otp_expires_at = null;
@@ -106,6 +110,7 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'token' => $token,
             'user' => $user,
+            'is_new_user' => $isNewUser,
         ]);
     }
 
@@ -127,5 +132,29 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    /**
+     * Sets the customer's real name — called right after first login,
+     * or any time from the account drawer to update it.
+     */
+    public function updateProfile(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user();
+        $user->name = $request->name;
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $user,
+        ]);
     }
 }

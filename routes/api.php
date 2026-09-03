@@ -19,6 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/update-profile', [AuthController::class, 'updateProfile']);
 
     Route::get('/salons', [SalonController::class, 'index']);
     Route::get('/salons/{salon}', [SalonController::class, 'show']);
