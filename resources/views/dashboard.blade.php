@@ -158,6 +158,36 @@
                 </template>
             </div>
 
+            <!-- Services -->
+            <template x-if="canManageStaff">
+                <div>
+                    <div class="flex items-baseline justify-between mb-4">
+                        <h2 class="text-sm font-medium text-stone-600">Services</h2>
+                        <button @click="openAddServiceForm()" class="text-sm bg-bottle text-white px-3 py-1.5 rounded-md hover:bg-bottle/90">
+                            Add service
+                        </button>
+                    </div>
+                    <template x-if="services.length === 0">
+                        <p class="text-sm text-stone-400 mb-10">No services yet. Add one so customers can book.</p>
+                    </template>
+                    <div class="border-t border-line mb-10">
+                        <template x-for="service in services" :key="service.id">
+                            <div class="flex items-center justify-between py-4 border-b border-line">
+                                <div>
+                                    <p class="font-medium text-stone-800" x-text="service.name"></p>
+                                    <p class="text-sm text-stone-500">
+                                        <span x-text="'₹' + service.price"></span> · <span x-text="service.avg_duration_minutes + ' min'"></span>
+                                    </p>
+                                </div>
+                                <button @click="removeService(service.id)" class="text-xs text-stone-400 hover:text-clay">
+                                    Remove
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
             <!-- Staff -->
             <template x-if="canManageStaff">
                 <div>
@@ -278,6 +308,38 @@
         </div>
     </div>
 
+    <!-- ADD SERVICE MODAL -->
+    <div x-show="showAddServiceForm" x-cloak class="fixed inset-0 bg-bottle/20 flex items-center justify-center px-4 z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm border border-line">
+            <h3 class="font-display text-lg font-semibold text-bottle mb-4">Add service</h3>
+
+            <label class="text-sm font-medium text-stone-600">Name</label>
+            <input x-model="serviceName" type="text" placeholder="e.g. Beard Trim"
+                class="w-full mt-1 mb-3 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <label class="text-sm font-medium text-stone-600">Price (₹)</label>
+            <input x-model="servicePrice" type="number" placeholder="150"
+                class="w-full mt-1 mb-3 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <label class="text-sm font-medium text-stone-600">Average duration (minutes)</label>
+            <input x-model="serviceDuration" type="number" placeholder="20"
+                class="w-full mt-1 mb-4 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <p x-show="serviceError" x-text="serviceError" class="text-clay text-xs mb-3"></p>
+
+            <div class="flex gap-2">
+                <button @click="closeAddServiceForm()"
+                    class="flex-1 border border-line text-stone-700 py-2 rounded-md hover:border-stone-400">
+                    Cancel
+                </button>
+                <button @click="submitAddService()" :disabled="serviceLoading"
+                    class="flex-1 bg-bottle text-white py-2 rounded-md hover:bg-bottle/90 disabled:opacity-50">
+                    <span x-text="serviceLoading ? 'Adding…' : 'Add'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
 <script>
 function dashboardApp() {
     return {
@@ -314,6 +376,13 @@ function dashboardApp() {
         chairLabel: '',
         chairLoading: false,
         chairError: null,
+
+        showAddServiceForm: false,
+        serviceName: '',
+        servicePrice: '',
+        serviceDuration: '',
+        serviceLoading: false,
+        serviceError: null,
 
         get canManageStaff() {
             return this.userRole === 'salon_owner' || this.userRole === 'super_admin';
@@ -561,6 +630,52 @@ function dashboardApp() {
                 method: 'DELETE', headers: this.headers(),
             });
             this.loadQueueData();
+        },
+
+        openAddServiceForm() {
+            this.serviceName = '';
+            this.servicePrice = '';
+            this.serviceDuration = '';
+            this.serviceError = null;
+            this.showAddServiceForm = true;
+        },
+
+        closeAddServiceForm() {
+            this.showAddServiceForm = false;
+        },
+
+        async submitAddService() {
+            this.serviceError = null;
+            if (!this.serviceName.trim()) { this.serviceError = 'Name is required.'; return; }
+            if (!this.servicePrice || this.servicePrice <= 0) { this.serviceError = 'Enter a valid price.'; return; }
+            if (!this.serviceDuration || this.serviceDuration <= 0) { this.serviceError = 'Enter a valid duration.'; return; }
+
+            this.serviceLoading = true;
+            try {
+                const res = await fetch(`/api/salons/${this.selectedSalon.id}/services`, {
+                    method: 'POST',
+                    headers: this.headers(),
+                    body: JSON.stringify({
+                        name: this.serviceName,
+                        price: this.servicePrice,
+                        avg_duration_minutes: this.serviceDuration,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to add service');
+                this.showAddServiceForm = false;
+                this.loadServices();
+            } catch (e) {
+                this.serviceError = e.message;
+            }
+            this.serviceLoading = false;
+        },
+
+        async removeService(serviceId) {
+            await fetch(`/api/services/${serviceId}`, {
+                method: 'DELETE', headers: this.headers(),
+            });
+            this.loadServices();
         },
     }
 }
