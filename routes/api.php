@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/salons/{salon}/services', [ServiceController::class, 'index']);
 
     Route::get('/bookings/mine/active', [BookingController::class, 'myActive']);
+    Route::get('/bookings/mine/history', [BookingController::class, 'myHistory']);
     Route::post('/salons/{salon}/bookings', [BookingController::class, 'store']);
     Route::get('/salons/{salon}/bookings', [BookingController::class, 'index']);
     Route::post('/salons/{salon}/walk-ins', [BookingController::class, 'walkIn']);

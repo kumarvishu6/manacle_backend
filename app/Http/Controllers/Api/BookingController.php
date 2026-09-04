@@ -164,6 +164,23 @@ class BookingController extends Controller
         return response()->json($bookings);
     }
 
+    /**
+     * The current customer's past bookings — done, cancelled, or no-show.
+     * Paginated so a long history doesn't come back as one giant payload.
+     */
+    public function myHistory(Request $request)
+    {
+        $user = $request->user();
+
+        $bookings = Booking::where('customer_id', $user->id)
+            ->whereIn('status', ['done', 'cancelled', 'no_show'])
+            ->with(['salon:id,name', 'service:id,name,price'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        return response()->json($bookings);
+    }
+
     public function index(Request $request, Salon $salon)
     {
         $this->authorizeQueueAccess($request->user(), $salon);
