@@ -24,6 +24,12 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
+        if (! $salon->isCurrentlyOpen()) {
+            return response()->json([
+                'message' => 'This salon is currently closed. Please check back during opening hours.',
+            ], 422);
+        }
+
         $validator = Validator::make($request->all(), [
             'service_id' => 'required|exists:services,id',
         ]);
@@ -75,6 +81,11 @@ class BookingController extends Controller
     public function walkIn(Request $request, Salon $salon)
     {
         $this->authorizeQueueAccess($request->user(), $salon);
+
+        // Staff physically at a closed salon adding a walk-in is a real,
+        // legitimate edge case (e.g. finishing up after hours) — so this
+        // check is intentionally on the customer-facing store() path only,
+        // not here. Staff already know their own salon's real status.
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
