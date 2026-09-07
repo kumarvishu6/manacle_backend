@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PushToken;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -156,5 +157,28 @@ class AuthController extends Controller
             'message' => 'Profile updated successfully',
             'user' => $user,
         ]);
+    }
+
+    /**
+     * Registers (or reassigns) a device's push token to the current
+     * account. Reassignment matters for the case where the same physical
+     * device previously belonged to a different logged-in user.
+     */
+    public function pushToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        PushToken::updateOrCreate(
+            ['token' => $request->token],
+            ['user_id' => $request->user()->id]
+        );
+
+        return response()->json(['message' => 'Push token registered']);
     }
 }
