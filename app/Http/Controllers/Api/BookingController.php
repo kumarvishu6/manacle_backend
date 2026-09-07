@@ -23,6 +23,13 @@ class BookingController extends Controller
     ) {
     }
 
+    /**
+     * Wrapped in a transaction that locks the customer's own row —
+     * serializes any rapid double-tap from the same person, so a second
+     * near-simultaneous request waits for the first to commit, then
+     * correctly sees the just-created booking and gets rejected instead
+     * of creating a duplicate.
+     */
     public function store(Request $request, Salon $salon)
     {
         $user = $request->user();
@@ -50,30 +57,40 @@ class BookingController extends Controller
             return response()->json(['message' => 'This service is not available at this salon.'], 422);
         }
 
-        $existing = Booking::where('customer_id', $user->id)
-            ->where('salon_id', $salon->id)
-            ->whereIn('status', ['waiting', 'in_progress'])
-            ->first();
+        try {
+            $result = DB::transaction(function () use ($user, $salon, $service) {
+                User::where('id', $user->id)->lockForUpdate()->first();
 
-        if ($existing) {
-            return response()->json(['message' => 'You already have an active booking at this salon.'], 422);
+                $existing = Booking::where('customer_id', $user->id)
+                    ->where('salon_id', $salon->id)
+                    ->whereIn('status', ['waiting', 'in_progress'])
+                    ->first();
+
+                if ($existing) {
+                    throw new \RuntimeException('You already have an active booking at this salon.');
+                }
+
+                $estimate = $this->queueService->estimateWait($salon, $service->avg_duration_minutes);
+
+                $booking = Booking::create([
+                    'customer_id' => $user->id,
+                    'salon_id' => $salon->id,
+                    'service_id' => $service->id,
+                    'status' => 'waiting',
+                ]);
+
+                return [
+                    'booking' => $booking,
+                    'estimated_wait_minutes' => $estimate['estimated_wait_minutes'],
+                    'expected_start_at' => $estimate['expected_start_at'],
+                    'position_in_queue' => $estimate['position_in_queue'],
+                ];
+            });
+
+            return response()->json($result, 201);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $estimate = $this->queueService->estimateWait($salon, $service->avg_duration_minutes);
-
-        $booking = Booking::create([
-            'customer_id' => $user->id,
-            'salon_id' => $salon->id,
-            'service_id' => $service->id,
-            'status' => 'waiting',
-        ]);
-
-        return response()->json([
-            'booking' => $booking,
-            'estimated_wait_minutes' => $estimate['estimated_wait_minutes'],
-            'expected_start_at' => $estimate['expected_start_at'],
-            'position_in_queue' => $estimate['position_in_queue'],
-        ], 201);
     }
 
     /**
@@ -84,11 +101,6 @@ class BookingController extends Controller
     public function walkIn(Request $request, Salon $salon)
     {
         $this->authorizeQueueAccess($request->user(), $salon);
-
-        // Staff physically at a closed salon adding a walk-in is a real,
-        // legitimate edge case (e.g. finishing up after hours) — so this
-        // check is intentionally on the customer-facing store() path only,
-        // not here. Staff already know their own salon's real status.
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -148,12 +160,6 @@ class BookingController extends Controller
         ], 201);
     }
 
-    /**
-     * The current customer's active booking(s) — lets the app show a
-     * persistent "you have an active booking" banner and route back into
-     * tracking, instead of leaving them with no way back once they've
-     * navigated away from the tracking screen.
-     */
     public function myActive(Request $request)
     {
         $user = $request->user();
@@ -167,10 +173,6 @@ class BookingController extends Controller
         return response()->json($bookings);
     }
 
-    /**
-     * The current customer's past bookings — done, cancelled, or no-show.
-     * Paginated so a long history doesn't come back as one giant payload.
-     */
     public function myHistory(Request $request)
     {
         $user = $request->user();
@@ -197,9 +199,6 @@ class BookingController extends Controller
         return response()->json($bookings);
     }
 
-    /**
-     * Live status of a single booking — used by the customer app's tracking screen.
-     */
     public function show(Request $request, Booking $booking)
     {
         $user = $request->user();
@@ -249,10 +248,6 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * Assigns a waiting booking to a chair. Wrapped in a locked transaction
-     * so two near-simultaneous requests can't both grab the same chair.
-     */
     public function start(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
@@ -300,8 +295,6 @@ class BookingController extends Controller
                 return $freshBooking->fresh();
             });
 
-            // Best-effort push notification — never breaks the booking flow
-            // itself if it fails (handled inside the service).
             $this->notifications->notifyUser(
                 $result->customer,
                 "You're up!",
