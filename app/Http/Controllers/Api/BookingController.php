@@ -9,6 +9,7 @@ use App\Models\Salon;
 use App\Models\Service;
 use App\Models\Staff;
 use App\Models\User;
+use App\Services\FirebaseNotificationService;
 use App\Services\QueueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,8 +17,10 @@ use Illuminate\Support\Facades\Validator;
 
 class BookingController extends Controller
 {
-    public function __construct(protected QueueService $queueService)
-    {
+    public function __construct(
+        protected QueueService $queueService,
+        protected FirebaseNotificationService $notifications,
+    ) {
     }
 
     public function store(Request $request, Salon $salon)
@@ -297,6 +300,15 @@ class BookingController extends Controller
                 return $freshBooking->fresh();
             });
 
+            // Best-effort push notification — never breaks the booking flow
+            // itself if it fails (handled inside the service).
+            $this->notifications->notifyUser(
+                $result->customer,
+                "You're up!",
+                'Head to the chair — your service is starting now.',
+                ['booking_id' => (string) $result->id, 'type' => 'booking_started']
+            );
+
             return response()->json($result);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -335,6 +347,13 @@ class BookingController extends Controller
 
                 return $freshBooking->fresh();
             });
+
+            $this->notifications->notifyUser(
+                $result->customer,
+                'All done!',
+                'Thanks for visiting. See you next time!',
+                ['booking_id' => (string) $result->id, 'type' => 'booking_completed']
+            );
 
             return response()->json($result);
         } catch (\RuntimeException $e) {
