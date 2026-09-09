@@ -23,13 +23,6 @@ class BookingController extends Controller
     ) {
     }
 
-    /**
-     * Wrapped in a transaction that locks the customer's own row —
-     * serializes any rapid double-tap from the same person, so a second
-     * near-simultaneous request waits for the first to commit, then
-     * correctly sees the just-created booking and gets rejected instead
-     * of creating a duplicate.
-     */
     public function store(Request $request, Salon $salon)
     {
         $user = $request->user();
@@ -160,26 +153,38 @@ class BookingController extends Controller
         ], 201);
     }
 
+    /**
+     * The current customer's active booking(s) — lets the app show a
+     * persistent "you have an active booking" banner and route back into
+     * tracking, instead of leaving them with no way back once they've
+     * navigated away from the tracking screen. Includes salon coordinates
+     * so the tracking/detail screens can compute walking-distance nudges
+     * without a second lookup.
+     */
     public function myActive(Request $request)
     {
         $user = $request->user();
 
         $bookings = Booking::where('customer_id', $user->id)
             ->whereIn('status', ['waiting', 'in_progress'])
-            ->with(['salon:id,name', 'service:id,name'])
+            ->with(['salon:id,name,latitude,longitude', 'service:id,name'])
             ->orderBy('created_at')
             ->get();
 
         return response()->json($bookings);
     }
 
+    /**
+     * The current customer's past bookings — done, cancelled, or no-show.
+     * Paginated so a long history doesn't come back as one giant payload.
+     */
     public function myHistory(Request $request)
     {
         $user = $request->user();
 
         $bookings = Booking::where('customer_id', $user->id)
             ->whereIn('status', ['done', 'cancelled', 'no_show'])
-            ->with(['salon:id,name', 'service:id,name,price'])
+            ->with(['salon:id,name,latitude,longitude', 'service:id,name,price'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
@@ -199,6 +204,9 @@ class BookingController extends Controller
         return response()->json($bookings);
     }
 
+    /**
+     * Live status of a single booking — used by the customer app's tracking screen.
+     */
     public function show(Request $request, Booking $booking)
     {
         $user = $request->user();
@@ -248,6 +256,10 @@ class BookingController extends Controller
         ]);
     }
 
+    /**
+     * Assigns a waiting booking to a chair. Wrapped in a locked transaction
+     * so two near-simultaneous requests can't both grab the same chair.
+     */
     public function start(Request $request, Booking $booking)
     {
         $this->authorizeQueueAccess($request->user(), $booking->salon);
