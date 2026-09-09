@@ -15,8 +15,7 @@ class SalonController extends Controller
     }
 
     /**
-     * List salons. Customers see only active ones.
-     * Salon owners see only their own (any status).
+     * List salons. Salon owners see only their own (any status).
      */
     public function index(Request $request)
     {
@@ -111,13 +110,17 @@ class SalonController extends Controller
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'phone' => 'nullable|string|max:20',
+            'opens_at' => 'sometimes|nullable|date_format:H:i',
+            'closes_at' => 'sometimes|nullable|date_format:H:i',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $salon->update($request->only(['name', 'address', 'latitude', 'longitude', 'phone']));
+        $salon->update($request->only([
+            'name', 'address', 'latitude', 'longitude', 'phone', 'opens_at', 'closes_at',
+        ]));
 
         return response()->json($salon);
     }
