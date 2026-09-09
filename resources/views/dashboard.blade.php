@@ -80,6 +80,23 @@
 
         <main class="px-6 py-8 max-w-4xl mx-auto">
 
+            <!-- Hours -->
+            <template x-if="canManageStaff">
+                <div>
+                    <div class="flex items-baseline justify-between mb-4">
+                        <h2 class="text-sm font-medium text-stone-600">Hours</h2>
+                        <button @click="openHoursForm()" class="text-sm bg-bottle text-white px-3 py-1.5 rounded-md hover:bg-bottle/90">
+                            Edit hours
+                        </button>
+                    </div>
+                    <div class="border-t border-line mb-10">
+                        <div class="flex items-center justify-between py-4">
+                            <p class="text-sm text-stone-700" x-text="hoursDisplay()"></p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
             <!-- Chairs -->
             <div class="flex items-baseline justify-between mb-4">
                 <h2 class="text-sm font-medium text-stone-600">Chairs</h2>
@@ -340,6 +357,35 @@
         </div>
     </div>
 
+    <!-- EDIT HOURS MODAL -->
+    <div x-show="showHoursForm" x-cloak class="fixed inset-0 bg-bottle/20 flex items-center justify-center px-4 z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm border border-line">
+            <h3 class="font-display text-lg font-semibold text-bottle mb-1">Operating hours</h3>
+            <p class="text-sm text-stone-500 mb-4">Customers can't book outside these hours. Leave blank for always open.</p>
+
+            <label class="text-sm font-medium text-stone-600">Opens at</label>
+            <input x-model="hoursOpensAt" type="time"
+                class="w-full mt-1 mb-3 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <label class="text-sm font-medium text-stone-600">Closes at</label>
+            <input x-model="hoursClosesAt" type="time"
+                class="w-full mt-1 mb-4 px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-brass">
+
+            <p x-show="hoursError" x-text="hoursError" class="text-clay text-xs mb-3"></p>
+
+            <div class="flex gap-2">
+                <button @click="closeHoursForm()"
+                    class="flex-1 border border-line text-stone-700 py-2 rounded-md hover:border-stone-400">
+                    Cancel
+                </button>
+                <button @click="submitHours()" :disabled="hoursLoading"
+                    class="flex-1 bg-bottle text-white py-2 rounded-md hover:bg-bottle/90 disabled:opacity-50">
+                    <span x-text="hoursLoading ? 'Saving…' : 'Save'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
 <script>
 function dashboardApp() {
     return {
@@ -383,6 +429,12 @@ function dashboardApp() {
         serviceDuration: '',
         serviceLoading: false,
         serviceError: null,
+
+        showHoursForm: false,
+        hoursOpensAt: '',
+        hoursClosesAt: '',
+        hoursLoading: false,
+        hoursError: null,
 
         get canManageStaff() {
             return this.userRole === 'salon_owner' || this.userRole === 'super_admin';
@@ -676,6 +728,51 @@ function dashboardApp() {
                 method: 'DELETE', headers: this.headers(),
             });
             this.loadServices();
+        },
+
+        hoursDisplay() {
+            if (!this.selectedSalon || !this.selectedSalon.opens_at || !this.selectedSalon.closes_at) {
+                return 'Always open (no hours set)';
+            }
+            return `${this.selectedSalon.opens_at.slice(0, 5)} – ${this.selectedSalon.closes_at.slice(0, 5)}`;
+        },
+
+        openHoursForm() {
+            this.hoursOpensAt = this.selectedSalon?.opens_at ? this.selectedSalon.opens_at.slice(0, 5) : '';
+            this.hoursClosesAt = this.selectedSalon?.closes_at ? this.selectedSalon.closes_at.slice(0, 5) : '';
+            this.hoursError = null;
+            this.showHoursForm = true;
+        },
+
+        closeHoursForm() {
+            this.showHoursForm = false;
+        },
+
+        async submitHours() {
+            this.hoursError = null;
+            if ((this.hoursOpensAt && !this.hoursClosesAt) || (!this.hoursOpensAt && this.hoursClosesAt)) {
+                this.hoursError = 'Set both times, or leave both blank for always open.';
+                return;
+            }
+
+            this.hoursLoading = true;
+            try {
+                const res = await fetch(`/api/salons/${this.selectedSalon.id}`, {
+                    method: 'PUT',
+                    headers: this.headers(),
+                    body: JSON.stringify({
+                        opens_at: this.hoursOpensAt || null,
+                        closes_at: this.hoursClosesAt || null,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to update hours');
+                this.selectedSalon = data;
+                this.showHoursForm = false;
+            } catch (e) {
+                this.hoursError = e.message;
+            }
+            this.hoursLoading = false;
         },
     }
 }
